@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SOEPD Repair and Rehabilitation Status</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --brand: #2c3e50;
+      --brand-2: #34495e;
+      --accent: #2980b9;
+      --bg: #f4f6f9;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:"Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:var(--bg);
+      color:#222;
+    }
+    header{
+      background:var(--brand);
+      color:#fff;
+      padding:12px 16px;
+      text-align:center;
+      font-weight:700;
+      letter-spacing:1px;
+      font-size:24px;
+    }
+    .container{
+      padding:12px 16px 20px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .filter-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:4px;
+    }
+    .filters-left{
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+    label{font-size:14px}
+    select, input[type="text"], input[type="number"], input[type="date"]{
+      padding:6px 8px;
+      border-radius:6px;
+      border:1px solid #ccc;
+      font-size:14px;
+    }
+    #toggleAddForm{
+      padding:8px 12px;
+      border-radius:6px;
+      border:none;
+      background:var(--accent);
+      color:#fff;
+      font-weight:700;
+      cursor:pointer;
+    }
+    #toggleAddForm:hover{ background:#1f6391 }
+    .chart-section {
+      background: #fff;
+      border: 1px solid #e6e6e6;
+      border-radius: 12px;
+      padding: 10px 14px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      height: 180px;
+    }
+    .table-section {
+      background: #fff;
+      border: 1px solid #e6e6e6;
+      border-radius: 12px;
+      overflow-y: auto;
+      padding: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      height: 340px;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+    }
+    thead th{
+      position:sticky;
+      top:0;
+      background:var(--brand-2);
+      color:#fff;
+      padding:10px;
+      font-size:13px;
+      text-align:center;
+      z-index:2;
+    }
+    tbody td{
+      padding:10px;
+      border-bottom:1px solid #eee;
+      font-size:14px;
+      text-align:center;
+      vertical-align:middle;
+    }
+    td:nth-child(8),
+    td:nth-child(9),
+    td:nth-child(10) {
+      white-space: nowrap;
+    }
+    tbody tr:hover{ background:#fbfdff }
+    a.project-link{ color:var(--accent); text-decoration:none; font-weight:600 }
+    a.project-link:hover{text-decoration:underline}
+    .status-badge{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:700;
+      color:#fff;
+    }
+    .status-ongoing{ background:#27ae60 }
+    .status-completed{ background:#2980b9 }
+    .status-procurement{ background:#f39c12 } 
+    .green{ background: #2ecc71; color:#fff; }
+    .lightgreen{ background: #9fe6a8; color:#000; }
+    .gold{ background: #f1c40f; color:#000; }
+    .orange{ background: #f39c12; color:#000; }
+    .red{ background: #e74c3c; color:#fff; }
+    .neutral{ background:#bdc3c7; color:#fff; }
+    #addProjectFormContainer{
+      overflow:hidden;
+      max-height:0;
+      opacity:0;
+      transition: max-height 0.35s ease, opacity 0.35s ease;
+      background:#fff;
+      border:1px solid #e6e6e6;
+      border-radius:10px;
+      padding:10px;
+    }
+    #addProjectFormContainer.open{
+      max-height:720px;
+      opacity:1;
+    }
+    #addProjectForm{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+      gap:8px;
+      align-items:center;
+    }
+    #addProjectForm input, #addProjectForm select{
+      width:100%;
+      padding:6px 8px;
+      font-size:13px;
+      border-radius:6px;
+      border:1px solid #ccc;
+    }
+    #addProjectForm button[type="submit"]{
+      grid-column:1 / -1;
+      padding:8px 12px;
+      background:var(--accent);
+      color:#fff;
+      border:none;
+      border-radius:6px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    #successMessage{
+      display:none;
+      margin-top:8px;
+      background:#e9f8ef;
+      border:1px solid #bfe6c6;
+      color:#1d6f3a;
+      padding:10px 12px;
+      border-radius:8px;
+      position:relative;
+      font-weight:600;
+    }
+    #successMessage.show{ display:block; }
+    #successMessage button{
+      position:absolute;
+      right:8px;
+      top:8px;
+      border:none;
+      background:transparent;
+      font-size:18px;
+      cursor:pointer;
+      color:#1d6f3a;
+    }
+    @media (max-width:640px){
+      .filters-left{ flex-direction:column; align-items:flex-start; gap:8px }
+      #addProjectForm{ grid-template-columns:1fr }
+    }
+  </style>
+</head>
+<body>
+  <header>SOEPD Repair and Rehabilitation Status</header>
+
+  <div class="container">
+    <div class="filter-row">
+      <div class="filters-left">
+        <label for="categoryFilter">Project Category</label>
+        <select id="categoryFilter">
+          <option value="All">All</option>
+          <option value="MOIST">MOIST</option>
+          <option value="MOSES">MOSES</option>
+        </select>
+
+        <label for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="All">All</option>
+          <option value="Ongoing">Ongoing</option>
+          <option value="Completed">Completed</option>
+          <option value="Procurement">Procurement</option>
+        </select>
+
+        <label for="yearFilter">Project Year</label>
+        <select id="yearFilter">
+          <option value="All">All</option>
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
+      <button id="toggleAddForm">+ Add Project</button>
+    </div>
+
+    <div id="addProjectFormContainer" aria-hidden="true">
+      <form id="addProjectForm">
+        <input type="text" id="pr" placeholder="PURCHASE REQUEST #" />
+        <input type="text" id="category" placeholder="Category (MOIST / MOSES)" />
+        <input type="text" id="title" placeholder="Project Title" />
+        <input type="text" id="cost" placeholder="Project Cost (₱)" />
+        <select id="status">
+          <option value="Ongoing">Ongoing</option>
+          <option value="Completed">Completed</option>
+          <option value="Procurement">Procurement</option>
+        </select>
+        <input type="number" id="completion" placeholder="Completion (%)" min="0" max="100" />
+        <input type="date" id="actualStart" />
+        <input type="number" id="duration" placeholder="Contract Duration (days)" min="1" />
+        <input type="date" id="actualEnd" placeholder="Actual End Date (optional)" />
+        <button type="submit">Save Project</button>
+      </form>
+
+      <div id="successMessage" role="status" aria-live="polite">
+        ✅ Project added successfully!
+        <button id="closeMessage" aria-label="Close message">&times;</button>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <canvas id="completionChart" aria-label="Project completion chart"></canvas>
+    </div>
+
+    <div class="table-section" id="tableSection">
+      <table>
+        <thead>
+          <tr>
+            <th>PURCHASE REQUEST #</th>
+            <th>PROJECT CATEGORY</th>
+            <th>PROJECT TITLE</th>
+            <th>PROJECT COST</th>
+            <th>STATUS</th>
+            <th>PROJECT COMPLETION (%)</th>
+            <th>PROJECT CONTRACT DURATION</th>
+            <th>START DATE</th>
+            <th>END DATE</th>
+            <th>ACTUAL END DATE</th>
+            <th>REMAINING DAYS</th>
+          </tr>
+        </thead>
+        <tbody id="projects-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  let projects = [];
+
+  const toDate = s => s ? new Date(s + "T00:00:00") : null;
+  const fmt = s => s || "-";
+  const daysBetween = (a,b) => Math.round((b - a) / 86400000);
+
+  function projectDurationDays(p){
+    return p.duration ? `${p.duration} days` : "-";
+  }
+
+  const remainingDays = p => {
+    if (!p) return "-";
+    if (p.status && p.status.toLowerCase() === "completed") return 0;
+    if (p.actualEnd) return 0;
+    const e = toDate(p.end);
+    if (!e) return "-";
+    const today = new Date();
+    return Math.ceil((e - today) / 86400000);
+  };
+
+function colorizeRemainingDays(p){
+  // Case: Procurement, not started
+  if(p.status && p.status.toLowerCase()==="procurement" && !p.actualStart){
+    return `<td class="neutral" title="Project not started">Not started</td>`;
+  }
+
+  // ✅ Case: Completed projects
+  if(p.status && p.status.toLowerCase()==="completed"){
+    const s = toDate(p.actualStart || p.start);
+    const e = toDate(p.actualEnd || p.end);
+    if (s && e){
+      const duration = daysBetween(s, e);
+      const tooltip = `Start: ${s.toISOString().slice(0,10)}
+End: ${e.toISOString().slice(0,10)}
+Duration: ${duration} days`;
+      return `<td class="green" title="${tooltip.replace(/\n/g,'&#10;')}"><strong>Completed</strong></td>`;
+    }
+    return `<td class="green"><strong>Completed</strong></td>`;
+  }
+
+  // Case: Others (Ongoing, etc.)
+  const rem = remainingDays(p);
+  const s = toDate(p.actualStart);
+  const e = toDate(p.end);
+  const actualEnd = toDate(p.actualEnd);
+
+  if (rem === "-" || !s || !e) return `<td>${rem}</td>`;
+
+  const duration = daysBetween(s,e);
+  if (duration <= 0) return `<td>-</td>`;
+  if (rem < 0){
+    return `<td class="red" title="Planned End: ${e.toISOString().slice(0,10)}${actualEnd ? '\nActual End: ' + actualEnd.toISOString().slice(0,10) : ''}\nOverdue by ${Math.abs(rem)} days">
+              <strong>Overdue</strong>
+            </td>`;
+  }
+
+    const percent = Math.round((rem / duration) * 100);
+    let cls = "green";
+    if (percent <= 25) cls = "red";
+    else if (percent <= 50) cls = "orange";
+    else if (percent <= 75) cls = "gold";
+    else cls = "lightgreen";
+
+    const tooltip = `Planned End: ${e.toISOString().slice(0,10)}
+${actualEnd ? 'Actual End: ' + actualEnd.toISOString().slice(0,10) : ''}
+Days Remaining: ${rem}`;
+
+    return `<td class="${cls}" title="${tooltip.replace(/\n/g,'&#10;')}"><strong>${rem}</strong></td>`;
+  }
+
+  const tbody = document.getElementById("projects-body");
+  const categoryFilter = document.getElementById("categoryFilter");
+  const statusFilter = document.getElementById("statusFilter");
+  const yearFilter = document.getElementById("yearFilter");
+
+  const ctx = document.getElementById("completionChart").getContext("2d");
+  const completionChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Project Completion (%)",
+        data: [],
+        backgroundColor: "#4aa3df"
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        y:{ beginAtZero:true, max:100, title:{ display:true, text:"Completion (%)" } },
+        x:{ ticks:{
+          autoSkip:true,
+          maxRotation:45,
+          minRotation:0,
+          callback: function(val, index, ticks){
+            const label = this.getLabelForValue(index) || "";
+            return label.length > 18 ? label.substring(0,18) + "…" : label;
+          }
+        }}
+      }
+    }
+  });
+
+function render(category="All", status="All", year="All"){
+  tbody.innerHTML = "";
+  let filtered = projects;
+
+  if(category !== "All") filtered = filtered.filter(p => p.category === category);
+  if(status !== "All") filtered = filtered.filter(p => p.status === status);
+  if(year !== "All"){
+    filtered = filtered.filter(p => {
+      if(!p.pr || p.pr.length < 5) return false;
+      const prYear = p.pr.substring(1,5);
+      return prYear === year;
+    });
+  }
+
+  filtered.forEach(p => {
+    const statusClass = (p.status && p.status.toLowerCase() === "completed") ? "status-completed" :
+                        (p.status && p.status.toLowerCase() === "procurement") ? "status-procurement" : "status-ongoing";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.pr}</td>
+      <td>${p.category}</td>
+      <td>
+        <a href="project.html?pr=${p.pr}" target="_blank" class="project-link">
+          ${p.title}
+        </a>
+      </td>
+      <td>₱${Number(p.cost || 0).toLocaleString()}</td>
+      <td><span class="status-badge ${statusClass}">${p.status}</span></td>
+      <td title="Based on Statement of Work Accomplished (SWA)">${p.completion}%</td>
+      <td>${projectDurationDays(p)}</td>
+      <td>${fmt(p.actualStart)}</td>
+      <td>${fmt(p.end)}</td>
+      <td>${fmt(p.actualEnd)}</td>
+      ${colorizeRemainingDays(p)}
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 🔹 Shorten project titles for chart labels
+  function shortenTitle(p) {
+    let title = p.title;
+
+    if (p.category === "MOSES") {
+      if (title.includes("of")) {
+        title = title.split("of")[1].trim();
+      }
+    }
+
+    if (p.category === "MOIST") {
+      title = title.replace(/Repair|Rehabilitation/gi, "").trim();
+      if (title.includes("of")) {
+        title = title.split("of")[1].trim();
+      }
+    }
+
+    return title;
+  }
+
+  // 🔹 Exclude projects that are still in Procurement
+  const chartProjects = filtered.filter(p => p.status !== "Procurement");
+
+  // 🔹 Shorten project titles
+  completionChart.data.labels = chartProjects.map(p => shortenTitle(p));
+  completionChart.data.datasets[0].data = chartProjects.map(p => p.completion);
+
+  // Tooltip still shows full title
+  completionChart.options.plugins.tooltip = {
+    callbacks: {
+      title: function(context) {
+        return chartProjects[context[0].dataIndex].title;
+      }
+    }
+  };
+
+  completionChart.update();
+}
+
+async function loadProjects(){
+  try {
+    const res = await fetch("/projects");
+    projects = await res.json();
+
+    // 🔹 Auto-calculate end date if actualStart + duration exist
+    projects.forEach(p => {
+      if(p.actualStart && p.duration){
+        const e = new Date(new Date(p.actualStart).getTime() + p.duration*86400000);
+        p.end = e.toISOString().slice(0,10);
+      }
+    });
+
+    // 🔹 Sort projects by PR year (newest first)
+    projects.sort((a, b) => {
+      const getYear = pr => {
+        if (!pr) return 0;
+        const match1 = pr.match(/^5(\d{4})/);   // PR like 52023...
+        if (match1) return parseInt(match1[1], 10);
+        const match2 = pr.match(/^P(\d{4})/);   // PR like P2023...
+        if (match2) return parseInt(match2[1], 10);
+        return 0;
+      };
+      return getYear(b.pr) - getYear(a.pr);
+    });
+
+    // 🔹 Now render the sorted projects
+    render();
+  } catch (err) {
+    console.error("Error loading projects:", err);
+  }
+}
+
+  document.getElementById("toggleAddForm").addEventListener("click", () => {
+    const formContainer = document.getElementById("addProjectFormContainer");
+    formContainer.classList.toggle("open");
+  });
+
+  document.getElementById("addProjectForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const actualStart = document.getElementById("actualStart").value;
+    const duration = parseInt(document.getElementById("duration").value || 0);
+    const endDate = actualStart && duration > 0 
+      ? new Date(new Date(actualStart).getTime() + duration*86400000).toISOString().slice(0,10)
+      : "";
+
+    const newProject = {
+      pr: document.getElementById("pr").value,
+      category: document.getElementById("category").value,
+      title: document.getElementById("title").value,
+      cost: document.getElementById("cost").value,
+      status: document.getElementById("status").value,
+      completion: parseInt(document.getElementById("completion").value || 0),
+      actualStart: actualStart,
+      duration: duration,
+      end: endDate,
+      actualEnd: document.getElementById("actualEnd").value
+    };
+
+    try {
+      const res = await fetch("/add_project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProject)
+      });
+
+      if (res.ok) {
+        document.getElementById("successMessage").classList.add("show");
+        setTimeout(() => document.getElementById("successMessage").classList.remove("show"), 3000);
+        loadProjects(); 
+        e.target.reset(); 
+      } else {
+        alert("Failed to add project.");
+      }
+    } catch (err) {
+      console.error("Error adding project:", err);
+    }
+  });
+
+  categoryFilter.addEventListener("change", () => render(categoryFilter.value, statusFilter.value, yearFilter.value));
+  statusFilter.addEventListener("change", () => render(categoryFilter.value, statusFilter.value, yearFilter.value));
+  yearFilter.addEventListener("change", () => render(categoryFilter.value, statusFilter.value, yearFilter.value));
+
+  loadProjects();
+</script>
+
+</body>
+</html>

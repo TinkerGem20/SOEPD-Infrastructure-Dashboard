@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { 
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; 
+      background: #f4f6f9; 
+      margin: 0; 
+      padding: 0; 
+    }
+    header {
+      background: #2980b9;
+      color: #fff;
+      text-align: center;
+      padding: 20px 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .container {
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2, .card h3 {
+      margin-top: 0;
+      color: #2980b9;
+    }
+    .card p {
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    .label { font-weight: 600; color: #34495e; }
+    .value { color: #222; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      color: #fff;
+      font-size: 14px;
+    }
+    .status-ongoing { background: #27ae60; }
+    .status-completed { background: #2980b9; }
+    .status-procurement { background: #f39c12; }
+
+    /* Progress Bar */
+    .progress-container {
+      background: #eee;
+      border-radius: 8px;
+      height: 24px;
+      width: 100%;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      border-radius: 8px;
+      text-align: right;
+      padding-right: 8px;
+      line-height: 24px;
+      color: #fff;
+      font-weight: 600;
+      transition: width 0.5s;
+    }
+
+    /* Notes / Timeline */
+    .notes-list {
+      list-style: none;
+      padding-left: 0;
+    }
+    .notes-list li {
+      background: #f9f9f9;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border-left: 4px solid #2980b9;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .notes-list li span.date {
+      font-weight: 600;
+      color: #34495e;
+      margin-right: 6px;
+    }
+
+    .remaining-days {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .remaining-green { background: #27ae60; }
+    .remaining-orange { background: #f39c12; }
+    .remaining-red { background: #e74c3c; }
+
+    /* Timeline Gantt */
+    .timeline-container {
+      position: relative;
+      height: 50px;
+      background: #eee;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding: 8px;
+      margin: 10px 0;
+    }
+    .timeline-bar {
+      display: inline-block;
+      position: relative;
+      width: 6px;
+      height: 30px;
+      border-radius: 4px;
+      margin-right: 2px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<header>Project Tracker</header>
+
+<div class="container" id="projectContainer">
+  <div class="card" id="projectCard">
+    <h2>Loading project...</h2>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const pr = params.get('pr');
+
+  function daysBetween(a, b) {
+    return Math.ceil((b - a) / 86400000);
+  }
+
+  fetch("/projects")
+    .then(res => res.json())
+    .then(projects => {
+      const project = projects.find(p => p.pr === pr);
+      const card = document.getElementById('projectCard');
+
+      if(!project) {
+        card.innerHTML = `<h2>Project not found</h2>`;
+        return;
+      }
+
+      const statusClass = project.status.toLowerCase() === "completed" ? "status-completed" :
+                          project.status.toLowerCase() === "procurement" ? "status-procurement" : "status-ongoing";
+
+      // Progress bar color
+      let barColor = "#e67e22";
+      if(project.completion >= 100) barColor = "#27ae60";
+      else if(project.completion >= 50) barColor = "#9fe6a8";
+
+      // Remaining days
+      let remainingText = "-";
+      let remainingClass = "";
+      if(project.end){
+        const today = new Date();
+        const endDate = new Date(project.end);
+        const remaining = Math.ceil((endDate - today)/86400000);
+        if(project.status.toLowerCase() === "completed"){
+          remainingText = "Completed";
+          remainingClass = "remaining-green";
+        } else if(remaining < 0){
+          remainingText = `Overdue by ${Math.abs(remaining)} days`;
+          remainingClass = "remaining-red";
+        } else if(remaining <= 5){
+          remainingText = `${remaining} days remaining`;
+          remainingClass = "remaining-orange";
+        } else {
+          remainingText = `${remaining} days remaining`;
+          remainingClass = "remaining-green";
+        }
+      }
+
+      // Render project details
+      card.innerHTML = `
+        <h2>${project.title}</h2>
+        <p><span class="label">PR Number:</span> <span class="value">${project.pr}</span></p>
+        <p><span class="label">Category:</span> <span class="value">${project.category}</span></p>
+        <p><span class="label">Cost:</span> <span class="value">₱${Number(project.cost || 0).toLocaleString()}</span></p>
+        <p><span class="label">Status:</span> 
+           <span class="status-badge ${statusClass}">${project.status}</span>
+        </p>
+        <p><span class="label">Completion:</span> <span class="value">${project.completion}%</span></p>
+        <div class="progress-container">
+          <div class="progress-bar" style="width:${project.completion}%; background-color:${barColor};">
+            ${project.completion}%
+          </div>
+        </div>
+        <p><span class="label">Contract Duration:</span> <span class="value">${project.duration || '-'}</span></p>
+        <p><span class="label">Start Date:</span> <span class="value">${project.actualStart || '-'}</span></p>
+        <p><span class="label">Planned End Date:</span> <span class="value">${project.end || '-'}</span></p>
+        <p><span class="label">Actual End Date:</span> <span class="value">${project.actualEnd || '-'}</span></p>
+        <p><span class="label">Remaining Days:</span> 
+           <span class="remaining-days ${remainingClass}">${remainingText}</span>
+        </p>
+
+        <div class="card">
+          <h3>Project Updates</h3>
+          <ul class="notes-list">
+            ${project.notes?.length ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
+                                    : '<li>No updates yet.</li>'}
+          </ul>
+
+          <h3>Project Timeline</h3>
+          <div class="timeline-container">
+            ${project.notes?.length ? project.notes.map(n => {
+              const startDate = new Date(project.actualStart || project.start || new Date());
+              const endDate = new Date(project.end || project.actualEnd || new Date());
+              const noteDate = new Date(n.date);
+              const totalDays = (endDate - startDate)/86400000 || 1;
+              const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
+              const color = n.status?.toLowerCase() === 'completed' ? '#27ae60' : '#f39c12';
+              return `<div class="timeline-bar" title="${n.date}: ${n.update}" 
+                        style="left:${offsetPercent}%; background:${color};"></div>`;
+            }).join('') : '<p>No milestones yet.</p>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Completion Overview</h3>
+          <canvas id="progressChart" height="150"></canvas>
+        </div>
+      `;
+
+      // Render Chart.js completion chart
+      const ctx = document.getElementById('progressChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Planned', 'Actual'],
+          datasets: [{
+            label: 'Completion (%)',
+            data: [100, project.completion],
+            backgroundColor: ['#3498db', '#27ae60']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.data[context.dataIndex] + '%';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: 'Completion (%)' }
+            }
+          }
+        }
+      });
+
+    })
+    .catch(err => {
+      document.getElementById('projectCard').innerHTML = `<h2>Error loading project data.</h2>`;
+      console.error(err);
+    });
+</script>
+
+</body>
+</html>
