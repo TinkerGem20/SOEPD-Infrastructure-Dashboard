@@ -91,11 +91,6 @@
       color: #34495e;
       margin-right: 6px;
     }
-    .notes-list li em {
-      font-size: 12px;
-      color: #555;
-      margin-left: 6px;
-    }
 
     /* Remaining days badges */
     .remaining-days {
@@ -160,10 +155,6 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const pr = params.get('pr');
-
-  function daysBetween(a, b) {
-    return Math.ceil((b - a) / 86400000);
-  }
 
   fetch("projects.json")
     .then(res => res.json())
@@ -231,11 +222,26 @@
 
         <div class="card">
           <h3>Project Updates</h3>
-          <ul class="notes-list">
+          <ul class="notes-list" id="notesList">
             ${project.notes?.length 
-              ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update} ${n.status ? `<em>(${n.status})</em>` : ""}</li>`).join('') 
+              ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
               : '<li>No updates yet.</li>'}
           </ul>
+
+          <!-- ✅ New Update Form -->
+          <form id="updateForm" style="margin-top: 12px;">
+            <label>
+              <span class="label">Date:</span>
+              <input type="date" id="noteDate" required value="${new Date().toISOString().split('T')[0]}" />
+            </label><br><br>
+            <label>
+              <span class="label">Update:</span><br>
+              <textarea id="noteUpdate" rows="3" style="width:100%;" required></textarea>
+            </label><br><br>
+            <button type="submit" style="background:#2980b9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">
+              Add Update
+            </button>
+          </form>
         </div>
 
         <div class="card">
@@ -299,6 +305,33 @@
             }
           }
         }
+      });
+
+      // ✅ Handle form submission for new updates
+      document.getElementById("updateForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        
+        const date = document.getElementById("noteDate").value;
+        const update = document.getElementById("noteUpdate").value;
+        
+        fetch(`/project/${pr}/notes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, update })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if(data.project) {
+            const notesList = document.getElementById("notesList");
+            const newItem = document.createElement("li");
+            newItem.innerHTML = `<span class="date">${date}:</span> ${update}`;
+            notesList.appendChild(newItem);
+            document.getElementById("noteUpdate").value = "";
+          } else {
+            alert("Error adding update");
+          }
+        })
+        .catch(err => console.error("Error:", err));
       });
 
     })
