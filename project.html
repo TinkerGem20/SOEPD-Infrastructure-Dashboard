@@ -139,6 +139,26 @@
       margin-top: 4px;
     }
 
+    /* Form */
+    #updateForm {
+      margin-top: 12px;
+    }
+    #updateForm input, #updateForm textarea, #updateForm button {
+      display: block;
+      margin: 8px 0;
+      padding: 8px;
+      font-size: 14px;
+      width: 100%;
+    }
+    #updateForm button {
+      background: #2980b9;
+      color: white;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
     canvas { margin-top: 12px; }
   </style>
 </head>
@@ -156,13 +176,12 @@
   const params = new URLSearchParams(window.location.search);
   const pr = params.get('pr');
 
-  fetch("projects.json")
+  fetch("/project/" + pr)
     .then(res => res.json())
-    .then(projects => {
-      const project = projects.find(p => p.pr === pr);
+    .then(project => {
       const card = document.getElementById('projectCard');
 
-      if(!project) {
+      if(project.error) {
         card.innerHTML = `<h2>Project not found</h2>`;
         return;
       }
@@ -228,19 +247,10 @@
               : '<li>No updates yet.</li>'}
           </ul>
 
-          <!-- ✅ New Update Form -->
-          <form id="updateForm" style="margin-top: 12px;">
-            <label>
-              <span class="label">Date:</span>
-              <input type="date" id="noteDate" required value="${new Date().toISOString().split('T')[0]}" />
-            </label><br><br>
-            <label>
-              <span class="label">Update:</span><br>
-              <textarea id="noteUpdate" rows="3" style="width:100%;" required></textarea>
-            </label><br><br>
-            <button type="submit" style="background:#2980b9;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">
-              Add Update
-            </button>
+          <form id="updateForm">
+            <input type="date" id="noteDate" required>
+            <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
+            <button type="submit">Add Update</button>
           </form>
         </div>
 
@@ -255,9 +265,8 @@
                 const noteDate = new Date(n.date);
                 const totalDays = (endDate - startDate)/86400000 || 1;
                 const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
-                return `<div class="milestone" style="left:${offsetPercent}%" 
-                            title="${n.date}: ${n.update}" 
-                            aria-label="Milestone on ${n.date}: ${n.update}"></div>`;
+                return `<div class="milestone" style="left:${offsetPercent}%"
+                            title="${n.date}: ${n.update}"></div>`;
               }).join('') : '<p>No milestones yet.</p>'}
             </div>
             <div class="timeline-labels">
@@ -275,7 +284,7 @@
 
       // Render Chart.js completion chart
       const ctx = document.getElementById('progressChart').getContext('2d');
-      new Chart(ctx, {
+      window.progressChart = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: ['Planned', 'Actual'],
@@ -323,10 +332,32 @@
         .then(data => {
           if(data.project) {
             const notesList = document.getElementById("notesList");
+
+            // 🔹 Add update to notes list
             const newItem = document.createElement("li");
             newItem.innerHTML = `<span class="date">${date}:</span> ${update}`;
             notesList.appendChild(newItem);
             document.getElementById("noteUpdate").value = "";
+
+            // 🔹 Re-render timeline with new note
+            const timeline = document.querySelector(".timeline");
+            const startDate = new Date(data.project.actualStart || data.project.start || new Date());
+            const endDate = new Date(data.project.end || data.project.actualEnd || new Date());
+            const noteDate = new Date(date);
+            const totalDays = (endDate - startDate)/86400000 || 1;
+            const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
+
+            const milestone = document.createElement("div");
+            milestone.className = "milestone";
+            milestone.style.left = offsetPercent + "%";
+            milestone.title = `${date}: ${update}`;
+            timeline.appendChild(milestone);
+
+            // 🔹 Update chart with new completion %
+            if(window.progressChart) {
+              window.progressChart.data.datasets[0].data[1] = data.project.completion;
+              window.progressChart.update();
+            }
           } else {
             alert("Error adding update");
           }
