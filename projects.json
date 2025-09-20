@@ -10,7 +10,11 @@
     "duration": 120,
     "actualEnd": "",
     "notes": [
-      { "date": "2025-09-21", "update": "Mobilization", "status": "Ongoing" }
+      {
+        "date": "2025-09-21",
+        "update": "Mobilization",
+        "status": "Ongoing"
+      }
     ]
   },
   {
@@ -47,7 +51,16 @@
     "actualStart": "2025-07-28",
     "duration": 120,
     "actualEnd": "",
-    "notes": []
+    "notes": [
+      {
+        "date": "2025-09-05",
+        "update": "Mobilization and Meeting between the Contractor and Ms. Evelyn"
+      },
+      {
+        "date": "2025-09-08",
+        "update": "Ongoing works of Steel Trusses and Exterior Skim Coating - Reported by K. Eludo"
+      }
+    ]
   },
   {
     "pr": "520230804659",

@@ -175,201 +175,192 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const pr = params.get('pr');
+  let currentProject = null;
+  let progressChart = null;
 
-  fetch("/project/" + pr)
-    .then(res => res.json())
-    .then(project => {
-      const card = document.getElementById('projectCard');
+  function renderProject(project) {
+    const card = document.getElementById('projectCard');
 
-      if(project.error) {
-        card.innerHTML = `<h2>Project not found</h2>`;
-        return;
+    if(project.error) {
+      card.innerHTML = `<h2>Project not found</h2>`;
+      return;
+    }
+
+    currentProject = project;
+
+    const statusClass = project.status.toLowerCase() === "completed" ? "status-completed" :
+                        project.status.toLowerCase() === "procurement" ? "status-procurement" : "status-ongoing";
+
+    // Progress bar color
+    let barColor = "#e67e22";
+    if(project.completion >= 100) barColor = "#27ae60";
+    else if(project.completion >= 50) barColor = "#9fe6a8";
+
+    // Remaining days
+    let remainingText = "-";
+    let remainingClass = "";
+    if(project.end){
+      const today = new Date();
+      const endDate = new Date(project.end);
+      const remaining = Math.ceil((endDate - today)/86400000);
+      if(project.status.toLowerCase() === "completed"){
+        remainingText = "Completed";
+        remainingClass = "remaining-green";
+      } else if(remaining < 0){
+        remainingText = `Overdue by ${Math.abs(remaining)} days`;
+        remainingClass = "remaining-red";
+      } else if(remaining <= 5){
+        remainingText = `${remaining} days remaining`;
+        remainingClass = "remaining-orange";
+      } else {
+        remainingText = `${remaining} days remaining`;
+        remainingClass = "remaining-green";
       }
+    }
 
-      const statusClass = project.status.toLowerCase() === "completed" ? "status-completed" :
-                          project.status.toLowerCase() === "procurement" ? "status-procurement" : "status-ongoing";
+    // Render project details
+    card.innerHTML = `
+      <h2>${project.title}</h2>
+      <p><span class="label">PR Number:</span> <span class="value">${project.pr}</span></p>
+      <p><span class="label">Category:</span> <span class="value">${project.category}</span></p>
+      <p><span class="label">Cost:</span> <span class="value">₱${Number(project.cost || 0).toLocaleString()}</span></p>
+      <p><span class="label">Status:</span> 
+         <span class="status-badge ${statusClass}">${project.status}</span>
+      </p>
+      <p><span class="label">Completion:</span> <span class="value">${project.completion}%</span></p>
+      <div class="progress-container">
+        <div class="progress-bar" style="width:${project.completion}%; background-color:${barColor};">
+          ${project.completion}%
+        </div>
+      </div>
+      <p><span class="label">Contract Duration:</span> <span class="value">${project.duration || '-'}</span></p>
+      <p><span class="label">Start Date:</span> <span class="value">${project.actualStart || '-'}</span></p>
+      <p><span class="label">Planned End Date:</span> <span class="value">${project.end || '-'}</span></p>
+      <p><span class="label">Actual End Date:</span> <span class="value">${project.actualEnd || '-'}</span></p>
+      <p><span class="label">Remaining Days:</span> 
+         <span class="remaining-days ${remainingClass}">${remainingText}</span>
+      </p>
 
-      // Progress bar color
-      let barColor = "#e67e22";
-      if(project.completion >= 100) barColor = "#27ae60";
-      else if(project.completion >= 50) barColor = "#9fe6a8";
+      <div class="card">
+        <h3>Project Updates</h3>
+        <ul class="notes-list" id="notesList">
+          ${project.notes?.length 
+            ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
+            : '<li>No updates yet.</li>'}
+        </ul>
 
-      // Remaining days
-      let remainingText = "-";
-      let remainingClass = "";
-      if(project.end){
-        const today = new Date();
-        const endDate = new Date(project.end);
-        const remaining = Math.ceil((endDate - today)/86400000);
-        if(project.status.toLowerCase() === "completed"){
-          remainingText = "Completed";
-          remainingClass = "remaining-green";
-        } else if(remaining < 0){
-          remainingText = `Overdue by ${Math.abs(remaining)} days`;
-          remainingClass = "remaining-red";
-        } else if(remaining <= 5){
-          remainingText = `${remaining} days remaining`;
-          remainingClass = "remaining-orange";
-        } else {
-          remainingText = `${remaining} days remaining`;
-          remainingClass = "remaining-green";
-        }
-      }
+        <form id="updateForm">
+          <input type="date" id="noteDate" required>
+          <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
+          <button type="submit">Add Update</button>
+        </form>
+      </div>
 
-      // Render project details
-      card.innerHTML = `
-        <h2>${project.title}</h2>
-        <p><span class="label">PR Number:</span> <span class="value">${project.pr}</span></p>
-        <p><span class="label">Category:</span> <span class="value">${project.category}</span></p>
-        <p><span class="label">Cost:</span> <span class="value">₱${Number(project.cost || 0).toLocaleString()}</span></p>
-        <p><span class="label">Status:</span> 
-           <span class="status-badge ${statusClass}">${project.status}</span>
-        </p>
-        <p><span class="label">Completion:</span> <span class="value">${project.completion}%</span></p>
-        <div class="progress-container">
-          <div class="progress-bar" style="width:${project.completion}%; background-color:${barColor};">
-            ${project.completion}%
+      <div class="card">
+        <h3>Project Timeline</h3>
+        <div class="timeline-wrapper">
+          <div class="timeline">
+            <div class="timeline-progress" style="width:${project.completion}%;"></div>
+            ${project.notes?.length ? project.notes.map(n => {
+              const startDate = new Date(project.actualStart || project.start || new Date());
+              const endDate = new Date(project.end || project.actualEnd || new Date());
+              const noteDate = new Date(n.date);
+              const totalDays = (endDate - startDate)/86400000 || 1;
+              const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
+              return `<div class="milestone" style="left:${offsetPercent}%"
+                          title="${n.date}: ${n.update}"></div>`;
+            }).join('') : '<p>No milestones yet.</p>'}
+          </div>
+          <div class="timeline-labels">
+            <span>${project.actualStart || project.start || '-'}</span>
+            <span>${project.end || project.actualEnd || '-'}</span>
           </div>
         </div>
-        <p><span class="label">Contract Duration:</span> <span class="value">${project.duration || '-'}</span></p>
-        <p><span class="label">Start Date:</span> <span class="value">${project.actualStart || '-'}</span></p>
-        <p><span class="label">Planned End Date:</span> <span class="value">${project.end || '-'}</span></p>
-        <p><span class="label">Actual End Date:</span> <span class="value">${project.actualEnd || '-'}</span></p>
-        <p><span class="label">Remaining Days:</span> 
-           <span class="remaining-days ${remainingClass}">${remainingText}</span>
-        </p>
+      </div>
 
-        <div class="card">
-          <h3>Project Updates</h3>
-          <ul class="notes-list" id="notesList">
-            ${project.notes?.length 
-              ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
-              : '<li>No updates yet.</li>'}
-          </ul>
+      <div class="card">
+        <h3>Completion Overview</h3>
+        <canvas id="progressChart" height="150"></canvas>
+      </div>
+    `;
 
-          <form id="updateForm">
-            <input type="date" id="noteDate" required>
-            <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
-            <button type="submit">Add Update</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3>Project Timeline</h3>
-          <div class="timeline-wrapper">
-            <div class="timeline">
-              <div class="timeline-progress" style="width:${project.completion}%;"></div>
-              ${project.notes?.length ? project.notes.map(n => {
-                const startDate = new Date(project.actualStart || project.start || new Date());
-                const endDate = new Date(project.end || project.actualEnd || new Date());
-                const noteDate = new Date(n.date);
-                const totalDays = (endDate - startDate)/86400000 || 1;
-                const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
-                return `<div class="milestone" style="left:${offsetPercent}%"
-                            title="${n.date}: ${n.update}"></div>`;
-              }).join('') : '<p>No milestones yet.</p>'}
-            </div>
-            <div class="timeline-labels">
-              <span>${project.actualStart || project.start || '-'}</span>
-              <span>${project.end || project.actualEnd || '-'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Completion Overview</h3>
-          <canvas id="progressChart" height="150"></canvas>
-        </div>
-      `;
-
-      // Render Chart.js completion chart
-      const ctx = document.getElementById('progressChart').getContext('2d');
-      window.progressChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['Planned', 'Actual'],
-          datasets: [{
-            label: 'Completion (%)',
-            data: [100, project.completion],
-            backgroundColor: ['#3498db', '#27ae60']
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  return context.dataset.data[context.dataIndex] + '%';
-                }
+    // Render Chart.js completion chart
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    if (progressChart) progressChart.destroy();
+    progressChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Planned', 'Actual'],
+        datasets: [{
+          label: 'Completion (%)',
+          data: [100, project.completion],
+          backgroundColor: ['#3498db', '#27ae60']
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.data[context.dataIndex] + '%';
               }
             }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              title: { display: true, text: 'Completion (%)' }
-            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            title: { display: true, text: 'Completion (%)' }
           }
         }
-      });
+      }
+    });
 
-      // ✅ Handle form submission for new updates
-      document.getElementById("updateForm").addEventListener("submit", function(e) {
-        e.preventDefault();
-        
-        const date = document.getElementById("noteDate").value;
-        const update = document.getElementById("noteUpdate").value;
-        
-        fetch(`/project/${pr}/notes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date, update })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if(data.project) {
-            const notesList = document.getElementById("notesList");
+    // ✅ Handle form submission for new updates
+    document.getElementById("updateForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const date = document.getElementById("noteDate").value;
+      const update = document.getElementById("noteUpdate").value;
+      
+      fetch(`/project/${pr}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, update })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if(data.project) {
+          renderProject(data.project); // re-render everything
+        } else {
+          alert("Error adding update");
+        }
+      })
+      .catch(err => console.error("Error:", err));
+    });
+  }
 
-            // 🔹 Add update to notes list
-            const newItem = document.createElement("li");
-            newItem.innerHTML = `<span class="date">${date}:</span> ${update}`;
-            notesList.appendChild(newItem);
-            document.getElementById("noteUpdate").value = "";
-
-            // 🔹 Re-render timeline with new note
-            const timeline = document.querySelector(".timeline");
-            const startDate = new Date(data.project.actualStart || data.project.start || new Date());
-            const endDate = new Date(data.project.end || data.project.actualEnd || new Date());
-            const noteDate = new Date(date);
-            const totalDays = (endDate - startDate)/86400000 || 1;
-            const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
-
-            const milestone = document.createElement("div");
-            milestone.className = "milestone";
-            milestone.style.left = offsetPercent + "%";
-            milestone.title = `${date}: ${update}`;
-            timeline.appendChild(milestone);
-
-            // 🔹 Update chart with new completion %
-            if(window.progressChart) {
-              window.progressChart.data.datasets[0].data[1] = data.project.completion;
-              window.progressChart.update();
-            }
-          } else {
-            alert("Error adding update");
-          }
-        })
-        .catch(err => console.error("Error:", err));
-      });
-
-    })
+  // 🔹 Initial load
+  fetch("/project/" + pr)
+    .then(res => res.json())
+    .then(project => renderProject(project))
     .catch(err => {
       document.getElementById('projectCard').innerHTML = `<h2>Error loading project data.</h2>`;
       console.error(err);
     });
+
+  // 🔹 SSE live updates
+  const eventSource = new EventSource("/events");
+  eventSource.onmessage = function(event) {
+    const projects = JSON.parse(event.data);
+    const updatedProject = projects.find(p => p.pr === pr);
+    if (updatedProject) {
+      renderProject(updatedProject);
+    }
+  };
 </script>
 
 </body>
