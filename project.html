@@ -73,7 +73,7 @@
       transition: width 0.5s;
     }
 
-    /* Notes / Timeline */
+    /* Notes / Updates */
     .notes-list {
       list-style: none;
       padding-left: 0;
@@ -91,7 +91,13 @@
       color: #34495e;
       margin-right: 6px;
     }
+    .notes-list li em {
+      font-size: 12px;
+      color: #555;
+      margin-left: 6px;
+    }
 
+    /* Remaining days badges */
     .remaining-days {
       display: inline-block;
       padding: 4px 12px;
@@ -103,7 +109,7 @@
     .remaining-orange { background: #f39c12; }
     .remaining-red { background: #e74c3c; }
 
-    /* Timeline Gantt */
+    /* Timeline */
     .timeline-wrapper {
       margin: 12px 0;
       position: relative;
@@ -226,8 +232,9 @@
         <div class="card">
           <h3>Project Updates</h3>
           <ul class="notes-list">
-            ${project.notes?.length ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
-                                    : '<li>No updates yet.</li>'}
+            ${project.notes?.length 
+              ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update} ${n.status ? `<em>(${n.status})</em>` : ""}</li>`).join('') 
+              : '<li>No updates yet.</li>'}
           </ul>
         </div>
 
