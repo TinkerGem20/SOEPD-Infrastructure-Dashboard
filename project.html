@@ -104,25 +104,41 @@
     .remaining-red { background: #e74c3c; }
 
     /* Timeline Gantt */
-    .timeline-container {
+    .timeline-wrapper {
+      margin: 12px 0;
       position: relative;
-      height: 50px;
+    }
+    .timeline {
+      position: relative;
+      height: 16px;
       background: #eee;
       border-radius: 8px;
-      overflow-x: auto;
-      white-space: nowrap;
-      padding: 8px;
-      margin: 10px 0;
+      overflow: hidden;
     }
-    .timeline-bar {
-      display: inline-block;
-      position: relative;
-      width: 6px;
-      height: 30px;
-      border-radius: 4px;
-      margin-right: 2px;
-      vertical-align: middle;
+    .timeline-progress {
+      height: 100%;
+      background: #2980b9;
+      border-radius: 8px 0 0 8px;
     }
+    .milestone {
+      position: absolute;
+      top: -6px;
+      width: 14px;
+      height: 14px;
+      background: #f39c12;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+    .timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    canvas { margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -213,19 +229,28 @@
             ${project.notes?.length ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
                                     : '<li>No updates yet.</li>'}
           </ul>
+        </div>
 
+        <div class="card">
           <h3>Project Timeline</h3>
-          <div class="timeline-container">
-            ${project.notes?.length ? project.notes.map(n => {
-              const startDate = new Date(project.actualStart || project.start || new Date());
-              const endDate = new Date(project.end || project.actualEnd || new Date());
-              const noteDate = new Date(n.date);
-              const totalDays = (endDate - startDate)/86400000 || 1;
-              const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
-              const color = n.status?.toLowerCase() === 'completed' ? '#27ae60' : '#f39c12';
-              return `<div class="timeline-bar" title="${n.date}: ${n.update}" 
-                        style="left:${offsetPercent}%; background:${color};"></div>`;
-            }).join('') : '<p>No milestones yet.</p>'}
+          <div class="timeline-wrapper">
+            <div class="timeline">
+              <div class="timeline-progress" style="width:${project.completion}%;"></div>
+              ${project.notes?.length ? project.notes.map(n => {
+                const startDate = new Date(project.actualStart || project.start || new Date());
+                const endDate = new Date(project.end || project.actualEnd || new Date());
+                const noteDate = new Date(n.date);
+                const totalDays = (endDate - startDate)/86400000 || 1;
+                const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
+                return `<div class="milestone" style="left:${offsetPercent}%" 
+                            title="${n.date}: ${n.update}" 
+                            aria-label="Milestone on ${n.date}: ${n.update}"></div>`;
+              }).join('') : '<p>No milestones yet.</p>'}
+            </div>
+            <div class="timeline-labels">
+              <span>${project.actualStart || project.start || '-'}</span>
+              <span>${project.end || project.actualEnd || '-'}</span>
+            </div>
           </div>
         </div>
 
