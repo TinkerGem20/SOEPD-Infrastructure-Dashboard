@@ -460,7 +460,7 @@ function render(category="All", status="All", year="All"){
 
 async function loadProjects(){
   try {
-    const res = await fetch("/projects");
+    const res = await fetch("projects.json");
     projects = await res.json();
 
     // 🔹 Auto-calculate end date if actualStart + duration exist

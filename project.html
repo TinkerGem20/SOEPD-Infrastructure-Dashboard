@@ -143,7 +143,7 @@
     return Math.ceil((b - a) / 86400000);
   }
 
-  fetch("/projects")
+  fetch("projects.json")
     .then(res => res.json())
     .then(projects => {
       const project = projects.find(p => p.pr === pr);
