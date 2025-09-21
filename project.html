@@ -356,6 +356,11 @@
         ? { dateStart, dateEnd, update }
         : { date: dateStart, update };
 
+      if (isGitHubPages) {
+        alert("Form updates are disabled on GitHub Pages. Run locally to add updates.");
+        return;
+      }
+
       fetch(`/project/${pr}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -373,24 +378,43 @@
     });
   }
 
-  // 🔹 Initial load
-  fetch("/project/" + pr)
-    .then(res => res.json())
-    .then(project => renderProject(project))
-    .catch(err => {
-      document.getElementById('projectCard').innerHTML = `<h2>Error loading project data.</h2>`;
-      console.error(err);
-    });
+  // 🔹 Detect if running on GitHub Pages or local Flask
+  const isGitHubPages = window.location.hostname.includes("github.io");
 
-  // 🔹 SSE live updates
-  const eventSource = new EventSource("/events");
-  eventSource.onmessage = function(event) {
-    const projects = JSON.parse(event.data);
-    const updatedProject = projects.find(p => p.pr === pr);
-    if (updatedProject) {
-      renderProject(updatedProject);
-    }
-  };
+  if (isGitHubPages) {
+    fetch("projects.json")
+      .then(res => res.json())
+      .then(projects => {
+        const project = projects.find(p => p.pr === pr);
+        if (project) {
+          renderProject(project);
+        } else {
+          document.getElementById('projectCard').innerHTML = `<h2>Project not found</h2>`;
+        }
+      })
+      .catch(err => {
+        document.getElementById('projectCard').innerHTML = `<h2>Error loading project data.</h2>`;
+        console.error(err);
+      });
+  } else {
+    fetch("/project/" + pr)
+      .then(res => res.json())
+      .then(project => renderProject(project))
+      .catch(err => {
+        document.getElementById('projectCard').innerHTML = `<h2>Error loading project data.</h2>`;
+        console.error(err);
+      });
+
+    // 🔹 SSE live updates (local only)
+    const eventSource = new EventSource("/events");
+    eventSource.onmessage = function(event) {
+      const projects = JSON.parse(event.data);
+      const updatedProject = projects.find(p => p.pr === pr);
+      if (updatedProject) {
+        renderProject(updatedProject);
+      }
+    };
+  }
 </script>
 
 </body>
