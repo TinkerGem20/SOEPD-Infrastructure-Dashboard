@@ -216,7 +216,7 @@
     "actualStart": "2025-08-27",
     "duration": 120,
     "actualEnd": "",
-    "notes": [      
+    "notes": [
       {
         "date": "2025-09-08",
         "update": "Start of ZCP Rehab - CLEARING reported by A. Labayog"
@@ -240,6 +240,26 @@
       {
         "date": "2025-09-12",
         "update": "Continuation of painting works (Outer and inner perimeter fence on the west side) reported by A. Labayog"
+      },
+      {
+        "date": "2025-09-15",
+        "update": "Painting works on the northern perimeter fence reported by A. Labayog"
+      },
+      {
+        "date": "2025-09-16",
+        "update": "Clearing and Painting works on the firewall (east perimeter fence) reported by A. Labayog"
+      },
+      {
+        "date": "2025-09-17",
+        "update": "Painting works on the firewall and painting of border (dark blue) at the base of the west perimeter fence reported by A. Labayog"
+      },
+      {
+        "date": "2025-09-19",
+        "update": "Continuation of painting works on the firewall reported by A. Labayog"
+      },
+      {
+        "date": "2025-09-20",
+        "update": "Floor tiles installation reported by A. Labayog"
       }
     ]
   },

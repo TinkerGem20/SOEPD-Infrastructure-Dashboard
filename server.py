@@ -50,14 +50,25 @@ def get_projects_json():
     """Serve the raw projects.json file (for project.html fetch)"""
     return send_from_directory(".", "projects.json")
 
-@app.route("/project/<pr>", methods=["GET"])
-def get_project(pr):
-    """Return one project by PR number"""
+@app.route("/project/<pr>/notes", methods=["POST"])
+def add_note(pr):
+    """
+    Add a new project update (note).
+    Body can include either:
+    - { "date": "2025-09-21", "update": "..." }
+    - or { "dateStart": "2025-09-20", "dateEnd": "2025-09-25", "update": "..." }
+    """
     projects = load_projects()
-    project = next((p for p in projects if p["pr"] == pr), None)
-    if not project:
-        return jsonify({"error": "Project not found"}), 404
-    return jsonify(project)
+    for p in projects:
+        if p["pr"] == pr:
+            note = request.json
+            if "notes" not in p:
+                p["notes"] = []
+            p["notes"].append(note)
+            save_projects(projects)
+            notify_clients()
+            return jsonify({"message": "Note added", "project": p}), 201
+    return jsonify({"error": "Project not found"}), 404
 
 @app.route("/project/<pr>/notes", methods=["POST"])
 def add_note(pr):

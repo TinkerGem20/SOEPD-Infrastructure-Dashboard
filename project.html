@@ -131,6 +131,13 @@
       border: 2px solid #fff;
       cursor: pointer;
     }
+    .timeline-bar {
+      position: absolute;
+      top: 4px;
+      height: 8px;
+      background: #f39c12;
+      border-radius: 4px;
+    }
     .timeline-labels {
       display: flex;
       justify-content: space-between;
@@ -245,12 +252,20 @@
         <h3>Project Updates</h3>
         <ul class="notes-list" id="notesList">
           ${project.notes?.length 
-            ? project.notes.map(n => `<li><span class="date">${n.date}:</span> ${n.update}</li>`).join('') 
+            ? project.notes.map(n => {
+                let dateDisplay = n.date 
+                  ? n.date 
+                  : (n.dateStart && n.dateEnd ? `${n.dateStart} – ${n.dateEnd}` : n.dateStart || "-");
+                return `<li><span class="date">${dateDisplay}:</span> ${n.update}</li>`;
+              }).join('') 
             : '<li>No updates yet.</li>'}
         </ul>
 
         <form id="updateForm">
-          <input type="date" id="noteDate" required>
+          <label>Start Date</label>
+          <input type="date" id="noteDateStart" required>
+          <label>End Date (optional)</label>
+          <input type="date" id="noteDateEnd">
           <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
           <button type="submit">Add Update</button>
         </form>
@@ -264,11 +279,21 @@
             ${project.notes?.length ? project.notes.map(n => {
               const startDate = new Date(project.actualStart || project.start || new Date());
               const endDate = new Date(project.end || project.actualEnd || new Date());
-              const noteDate = new Date(n.date);
               const totalDays = (endDate - startDate)/86400000 || 1;
-              const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
-              return `<div class="milestone" style="left:${offsetPercent}%"
-                          title="${n.date}: ${n.update}"></div>`;
+
+              if (n.dateStart && n.dateEnd) {
+                const s = new Date(n.dateStart);
+                const e = new Date(n.dateEnd);
+                const leftPercent = ((s - startDate)/86400000) / totalDays * 100;
+                const widthPercent = ((e - s)/86400000) / totalDays * 100;
+                return `<div class="timeline-bar" style="left:${leftPercent}%; width:${widthPercent}%;" 
+                          title="${n.dateStart} – ${n.dateEnd}: ${n.update}"></div>`;
+              } else {
+                const noteDate = new Date(n.date || n.dateStart);
+                const offsetPercent = ((noteDate - startDate)/86400000) / totalDays * 100;
+                return `<div class="milestone" style="left:${offsetPercent}%"
+                          title="${n.date || n.dateStart}: ${n.update}"></div>`;
+              }
             }).join('') : '<p>No milestones yet.</p>'}
           </div>
           <div class="timeline-labels">
@@ -323,13 +348,18 @@
     document.getElementById("updateForm").addEventListener("submit", function(e) {
       e.preventDefault();
       
-      const date = document.getElementById("noteDate").value;
+      const dateStart = document.getElementById("noteDateStart").value;
+      const dateEnd = document.getElementById("noteDateEnd").value;
       const update = document.getElementById("noteUpdate").value;
       
+      const payload = dateEnd 
+        ? { dateStart, dateEnd, update }
+        : { date: dateStart, update };
+
       fetch(`/project/${pr}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, update })
+        body: JSON.stringify(payload)
       })
       .then(res => res.json())
       .then(data => {
