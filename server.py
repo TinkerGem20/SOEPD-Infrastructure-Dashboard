@@ -1,8 +1,6 @@
 from flask import Flask, jsonify, request, send_from_directory, Response
 import json
 import os
-import time
-import threading
 import queue  # 👈 needed for SSE
 
 app = Flask(__name__)
@@ -50,6 +48,15 @@ def get_projects_json():
     """Serve the raw projects.json file (for project.html fetch)"""
     return send_from_directory(".", "projects.json")
 
+@app.route("/project/<pr>", methods=["GET"])
+def get_project(pr):
+    """Return a single project by PR number"""
+    projects = load_projects()
+    for p in projects:
+        if p["pr"] == pr:
+            return jsonify(p)
+    return jsonify({"error": "Project not found"}), 404
+
 @app.route("/project/<pr>/notes", methods=["POST"])
 def add_note(pr):
     """
@@ -67,24 +74,6 @@ def add_note(pr):
             p["notes"].append(note)
             save_projects(projects)
             notify_clients()
-            return jsonify({"message": "Note added", "project": p}), 201
-    return jsonify({"error": "Project not found"}), 404
-
-@app.route("/project/<pr>/notes", methods=["POST"])
-def add_note(pr):
-    """
-    Add a new project update (note).
-    Body must include: { "date": "...", "update": "...", "status": "..." }
-    """
-    projects = load_projects()
-    for p in projects:
-        if p["pr"] == pr:
-            note = request.json
-            if "notes" not in p:
-                p["notes"] = []
-            p["notes"].append(note)
-            save_projects(projects)
-            notify_clients()  # 👈 notify all live listeners
             return jsonify({"message": "Note added", "project": p}), 201
     return jsonify({"error": "Project not found"}), 404
 
