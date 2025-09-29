@@ -1,7 +1,10 @@
-from flask import Flask, jsonify, request, send_from_directory, Response
+from flask import Flask, jsonify, request, send_from_directory, Response, make_response
 import json
 import os
 import queue  # 👈 needed for SSE
+import datetime
+import csv
+import io
 
 app = Flask(__name__)
 
@@ -33,6 +36,9 @@ def notify_clients():
             dead.append(sub)
     for d in dead:
         subscribers.remove(d)
+
+def to_date(d):
+    return datetime.datetime.strptime(d, "%Y-%m-%d").date()
 
 # ------------------------
 # 🔹 API ROUTES
@@ -77,6 +83,92 @@ def add_note(pr):
             return jsonify({"message": "Note added", "project": p}), 201
     return jsonify({"error": "Project not found"}), 404
 
+
+# ------------------------
+# 🔹 Summary & CSV Export
+# ------------------------
+
+@app.route("/project/<pr>/updates/summary", methods=["GET"])
+def get_updates_summary(pr):
+    """Return JSON summary of updates within a date range"""
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+
+    projects = load_projects()
+    project = next((p for p in projects if p["pr"] == pr), None)
+    if not project or "notes" not in project:
+        return jsonify({"error": "No updates found"}), 404
+
+    filtered_notes = []
+    for note in project["notes"]:
+        if "date" in note:
+            d = to_date(note["date"])
+            if start_date and d < to_date(start_date):
+                continue
+            if end_date and d > to_date(end_date):
+                continue
+            filtered_notes.append(note)
+        elif "dateStart" in note and "dateEnd" in note:
+            ds, de = to_date(note["dateStart"]), to_date(note["dateEnd"])
+            if start_date and de < to_date(start_date):
+                continue
+            if end_date and ds > to_date(end_date):
+                continue
+            filtered_notes.append(note)
+
+    return jsonify({
+        "project": project["title"],
+        "pr": project["pr"],
+        "updates": filtered_notes
+    })
+
+@app.route("/project/<pr>/updates/export", methods=["GET"])
+def export_updates_csv(pr):
+    """Export updates as CSV (Excel-readable)."""
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+
+    projects = load_projects()
+    project = next((p for p in projects if p["pr"] == pr), None)
+    if not project or "notes" not in project:
+        return jsonify({"error": "No updates found"}), 404
+
+    filtered_notes = []
+    for note in project["notes"]:
+        if "date" in note:
+            d = to_date(note["date"])
+            if start_date and d < to_date(start_date):
+                continue
+            if end_date and d > to_date(end_date):
+                continue
+            filtered_notes.append(note)
+        elif "dateStart" in note and "dateEnd" in note:
+            ds, de = to_date(note["dateStart"]), to_date(note["dateEnd"])
+            if start_date and de < to_date(start_date):
+                continue
+            if end_date and ds > to_date(end_date):
+                continue
+            filtered_notes.append(note)
+
+    # Generate CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Project", "PR", "Date/Start", "End", "Update"])
+    for n in filtered_notes:
+        writer.writerow([
+            project["title"],
+            project["pr"],
+            n.get("date", n.get("dateStart", "")),
+            n.get("dateEnd", ""),
+            n.get("update", "")
+        ])
+
+    response = make_response(output.getvalue())
+    response.headers["Content-Disposition"] = f"attachment; filename={project['pr']}_updates.csv"
+    response.headers["Content-Type"] = "text/csv"
+    return response
+
+
 # ------------------------
 # 🔹 SSE for Live Updates
 # ------------------------
@@ -96,6 +188,7 @@ def events():
 
     return Response(gen(), mimetype="text/event-stream")
 
+
 # ------------------------
 # 🔹 FRONTEND ROUTES
 # ------------------------
@@ -107,6 +200,7 @@ def index():
 @app.route("/project.html")
 def project_page():
     return send_from_directory(".", "project.html")
+
 
 if __name__ == "__main__":
     app.run(debug=True, threaded=True)

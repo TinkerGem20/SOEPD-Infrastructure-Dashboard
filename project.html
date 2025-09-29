@@ -167,6 +167,27 @@
     }
 
     canvas { margin-top: 12px; }
+
+    /* ✅ Toast (non-blocking notice) */
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+      z-index: 9999;
+    }
+    #toast.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
   </style>
 </head>
 <body>
@@ -179,11 +200,22 @@
   </div>
 </div>
 
+<!-- ✅ Toast element -->
+<div id="toast" role="status" aria-live="polite"></div>
+
 <script>
   const params = new URLSearchParams(window.location.search);
   const pr = params.get('pr');
   let currentProject = null;
   let progressChart = null;
+
+  // ✅ Simple toast helper
+  function showToast(msg, timeout = 2200) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), timeout);
+  }
 
   function renderProject(project) {
     const card = document.getElementById('projectCard');
@@ -248,28 +280,37 @@
          <span class="remaining-days ${remainingClass}">${remainingText}</span>
       </p>
 
-      <div class="card">
-        <h3>Project Updates</h3>
-        <ul class="notes-list" id="notesList">
-          ${project.notes?.length 
-            ? project.notes.map(n => {
-                let dateDisplay = n.date 
-                  ? n.date 
-                  : (n.dateStart && n.dateEnd ? `${n.dateStart} – ${n.dateEnd}` : n.dateStart || "-");
-                return `<li><span class="date">${dateDisplay}:</span> ${n.update}</li>`;
-              }).join('') 
-            : '<li>No updates yet.</li>'}
-        </ul>
+<div class="card">
+  <h3>Project Updates</h3>
+  <ul class="notes-list" id="notesList">
+    ${project.notes?.length 
+      ? project.notes.map(n => {
+          let dateDisplay = n.date 
+            ? n.date 
+            : (n.dateStart && n.dateEnd ? `${n.dateStart} – ${n.dateEnd}` : n.dateStart || "-");
+          return `<li><span class="date">${dateDisplay}:</span> ${n.update}</li>`;
+        }).join('') 
+      : '<li>No updates yet.</li>'}
+  </ul>
 
-        <form id="updateForm">
-          <label>Start Date</label>
-          <input type="date" id="noteDateStart" required>
-          <label>End Date (optional)</label>
-          <input type="date" id="noteDateEnd">
-          <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
-          <button type="submit">Add Update</button>
-        </form>
-      </div>
+  <form id="updateForm">
+    <label>Start Date</label>
+    <input type="date" id="noteDateStart" required>
+    <label>End Date (optional)</label>
+    <input type="date" id="noteDateEnd">
+    <textarea id="noteUpdate" placeholder="Enter update..." required></textarea>
+    <button type="submit">Add Update</button>
+  </form>
+
+  <!-- ✅ Download CSV -->
+  <div style="margin-top:12px;">
+    <label>Export Updates (optional date range)</label><br>
+    <input type="date" id="exportStart">
+    <input type="date" id="exportEnd">
+    <button id="downloadCsvBtn" type="button">Download CSV</button>
+  </div>
+</div>
+
 
       <div class="card">
         <h3>Project Timeline</h3>
@@ -357,7 +398,7 @@
         : { date: dateStart, update };
 
       if (isGitHubPages) {
-        alert("Form updates are disabled on GitHub Pages. Run locally to add updates.");
+        showToast("Updates are disabled on GitHub Pages.");
         return;
       }
 
@@ -369,12 +410,82 @@
       .then(res => res.json())
       .then(data => {
         if(data.project) {
+          showToast("Update added");
           renderProject(data.project); // re-render everything
         } else {
           alert("Error adding update");
         }
       })
       .catch(err => console.error("Error:", err));
+    });
+
+    // ✅ CSV Download button (works on both GitHub Pages & local)
+    document.getElementById("downloadCsvBtn").addEventListener("click", () => {
+      const start = document.getElementById("exportStart").value;
+      const end = document.getElementById("exportEnd").value;
+
+      if (!currentProject) {
+        alert("No project data loaded.");
+        return;
+      }
+
+      if (isGitHubPages) {
+        // Client-side CSV generation
+        if (!currentProject.notes || currentProject.notes.length === 0) {
+          alert("No updates to export.");
+          return;
+        }
+
+        const filtered = currentProject.notes.filter(n => {
+          const s = start ? new Date(start) : null;
+          const e = end ? new Date(end) : null;
+          let d1 = n.date ? new Date(n.date) : (n.dateStart ? new Date(n.dateStart) : null);
+          let d2 = n.dateEnd ? new Date(n.dateEnd) : d1;
+          if (s && d2 < s) return false;
+          if (e && d1 > e) return false;
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          alert("No updates found for this date range.");
+          return;
+        }
+
+        let csv = ["Project,PR,Date/Start,End,Update"];
+        filtered.forEach(n => {
+          const row = [
+            currentProject.title,
+            currentProject.pr,
+            n.date || n.dateStart || "",
+            n.dateEnd || "",
+            `"${(n.update || "").replace(/"/g, '""')}"`
+          ];
+          csv.push(row.join(","));
+        });
+
+        const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        let filename = `${currentProject.pr}_updates.csv`;
+        if (start || end) filename = `${currentProject.pr}_updates_${start || ''}_${end || ''}.csv`;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("CSV generated");
+
+      } else {
+        // Backend export (Flask)
+        let url = `/project/${pr}/updates/export`;
+        if (start || end) {
+          const params = new URLSearchParams();
+          if (start) params.append("start", start);
+          if (end) params.append("end", end);
+          url += "?" + params.toString();
+        }
+        showToast("Preparing CSV…");
+        window.location.href = url;
+      }
     });
   }
 
