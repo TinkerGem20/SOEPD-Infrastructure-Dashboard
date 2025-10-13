@@ -496,8 +496,35 @@ async function loadProjects(){
     formContainer.classList.toggle("open");
   });
 
+  // 🔹 Grab form inputs for auto-status logic
+  const statusSelect = document.getElementById("status");
+  const actualStartInput = document.getElementById("actualStart");
+  const actualEndInput = document.getElementById("actualEnd");
+
+  // 🔹 Auto-compute status based on date fields
+  function recomputeStatusFromFields(){
+    const hasStart = !!actualStartInput.value;
+    const hasActualEnd = !!actualEndInput.value;
+
+    let newStatus;
+    if (hasActualEnd) newStatus = "Completed";
+    else if (hasStart) newStatus = "Ongoing";
+    else newStatus = "Procurement";
+
+    if (statusSelect.value !== newStatus){
+      statusSelect.value = newStatus;
+    }
+  }
+
+  // 🔹 Update status when dates change (live in form)
+  actualStartInput.addEventListener("change", recomputeStatusFromFields);
+  actualEndInput.addEventListener("change", recomputeStatusFromFields);
+
   document.getElementById("addProjectForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    // ✅ Ensure status is in sync with current dates before saving
+    recomputeStatusFromFields();
 
     const actualStart = document.getElementById("actualStart").value;
     const duration = parseInt(document.getElementById("duration").value || 0);
@@ -510,7 +537,7 @@ async function loadProjects(){
       category: document.getElementById("category").value,
       title: document.getElementById("title").value,
       cost: document.getElementById("cost").value,
-      status: document.getElementById("status").value,
+      status: statusSelect.value, // ← use the auto-updated status
       completion: parseInt(document.getElementById("completion").value || 0),
       actualStart: actualStart,
       duration: duration,
@@ -529,7 +556,9 @@ async function loadProjects(){
         document.getElementById("successMessage").classList.add("show");
         setTimeout(() => document.getElementById("successMessage").classList.remove("show"), 3000);
         loadProjects(); 
-        e.target.reset(); 
+        e.target.reset();
+        // keep UX nice: recompute default status after reset
+        recomputeStatusFromFields();
       } else {
         alert("Failed to add project.");
       }
